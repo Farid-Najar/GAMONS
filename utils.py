@@ -2,33 +2,61 @@ import numpy as np
 from numba import njit
 from scipy.linalg import svd
 
+import jax.numpy as jnp
+
 @njit
 def NewtonSchulz(M):
    # by @YouJiacheng (with stability loss idea from @leloykun)
    # https://twitter.com/YouJiacheng/status/1893704552689303901
    # https://gist.github.com/YouJiacheng/393c90cbdc23b09d5688815ba382288b/5bff1f7781cf7d062a155eecd2f13075756482ae
 
-   abc_list = [
-      (3955/1024, -8306/1024, 5008/1024),
-      (3735/1024, -6681/1024, 3463/1024),
-      (3799/1024, -6499/1024, 3211/1024),
-      (4019/1024, -6385/1024, 2906/1024),
-      (2677/1024, -3029/1024, 1162/1024),
-      (2172/1024, -1833/1024,  682/1024)
-   ]
+    abc_list = [
+        (3955/1024, -8306/1024, 5008/1024),
+        (3735/1024, -6681/1024, 3463/1024),
+        (3799/1024, -6499/1024, 3211/1024),
+        (4019/1024, -6385/1024, 2906/1024),
+        (2677/1024, -3029/1024, 1162/1024),
+        (2172/1024, -1833/1024,  682/1024)
+    ]
 
-   transpose = M.shape[1] > M.shape[0]
-   if transpose:
-      M = M.T
-   M = M / np.linalg.norm(M)
-   for a, b, c in abc_list:
-      A = M.T @ M
-      I = np.eye(A.shape[0])
-      M = M @ (a * I + b * A + c * A @ A)
-   if transpose:
-      M = M.T
-   return M
+    transpose = M.shape[1] > M.shape[0]
+    if transpose:
+        M = M.T
+    M = M / np.linalg.norm(M)
+    for a, b, c in abc_list:
+        A = M.T @ M
+        I = np.eye(A.shape[0])
+        M = M @ (a * I + b * A + c * A @ A)
+    if transpose:
+        M = M.T
+    return M
 
+def NewtonSchulz_MCP(M):
+   # by @YouJiacheng (with stability loss idea from @leloykun)
+   # https://twitter.com/YouJiacheng/status/1893704552689303901
+   # https://gist.github.com/YouJiacheng/393c90cbdc23b09d5688815ba382288b/5bff1f7781cf7d062a155eecd2f13075756482ae
+
+    #TODO
+    abc_list = [
+        (3955/1024, -8306/1024, 5008/1024),
+        (3735/1024, -6681/1024, 3463/1024),
+        (3799/1024, -6499/1024, 3211/1024),
+        (4019/1024, -6385/1024, 2906/1024),
+        (2677/1024, -3029/1024, 1162/1024),
+        (2172/1024, -1833/1024,  682/1024)
+    ]
+
+    transpose = M.shape[1] > M.shape[0]
+    if transpose:
+        M = M.T
+    M = M / np.linalg.norm(M)
+    for a, b, c in abc_list:
+        A = M.T @ M
+        I = np.eye(A.shape[0])
+        M = M @ (a * I + b * A + c * A @ A)
+    if transpose:
+        M = M.T
+    return M
 #############################
 ## Vector lmo
 #############################
@@ -97,6 +125,37 @@ def lmo_entrywise_linf(G, r):
     return -r * np.sign(G)
 
 
+#############################
+## Functions
+#############################
+# ---- MCP penalty function ----
+def mcp(x, lam = 1., mu = 3.):
+    """MCP"""
+    x = np.asarray(x)
+    p = np.zeros_like(x)
+    mask1 = np.abs(x) <= mu * lam
+    mask2 = ~mask1
+    # Region 1: |x| <= mu*lam
+    p[mask1] = lam * np.abs(x[mask1]) - (x[mask1]**2) / (2 * mu)
+    # Region 2: |x| > mu*lam
+    p[mask2] = 0.5 * mu * lam**2
+    return p
+
+def mcp_jnp(x, lam = 1., mu = 3.):
+    """MCP"""
+    x = jnp.asarray(x)
+    p = jnp.zeros_like(x)
+    x_mask1 = jnp.where(jnp.abs(x) <= mu * lam, p, 0)
+    # mask2 = ~mask1
+    # Region 1: |x| <= mu*lam
+    # p[mask1] = lam * jnp.abs(x[mask1]) - (x[mask1]**2) / (2 * mu)
+    p = jnp.where(jnp.abs(x) <= mu * lam, lam * jnp.abs(x_mask1) - (x_mask1**2) / (2 * mu), p)
+    # Region 2: |x| > mu*lam
+    # p[mask2] = 0.5 * mu * lam**2
+    p = jnp.where(jnp.abs(x) > mu * lam, 0.5 * mu * lam**2, p)
+    
+    
+    return p
 #############################
 ## Proximals
 #############################
