@@ -31,32 +31,6 @@ def NewtonSchulz(M):
         M = M.T
     return M
 
-def NewtonSchulz_MCP(M):
-   # by @YouJiacheng (with stability loss idea from @leloykun)
-   # https://twitter.com/YouJiacheng/status/1893704552689303901
-   # https://gist.github.com/YouJiacheng/393c90cbdc23b09d5688815ba382288b/5bff1f7781cf7d062a155eecd2f13075756482ae
-
-    #TODO
-    abc_list = [
-        (3955/1024, -8306/1024, 5008/1024),
-        (3735/1024, -6681/1024, 3463/1024),
-        (3799/1024, -6499/1024, 3211/1024),
-        (4019/1024, -6385/1024, 2906/1024),
-        (2677/1024, -3029/1024, 1162/1024),
-        (2172/1024, -1833/1024,  682/1024)
-    ]
-
-    transpose = M.shape[1] > M.shape[0]
-    if transpose:
-        M = M.T
-    M = M / np.linalg.norm(M)
-    for a, b, c in abc_list:
-        A = M.T @ M
-        I = np.eye(A.shape[0])
-        M = M @ (a * I + b * A + c * A @ A)
-    if transpose:
-        M = M.T
-    return M
 #############################
 ## Vector lmo
 #############################
@@ -108,8 +82,9 @@ def lmo_spectral(G, r):
     # Spectral norm ball
     if np.allclose(G, 0):
         return np.zeros_like(G)
-    U, _, Vt = svd(G, full_matrices=False) #TODO change this to a more efficient way
-    return -r * U @ Vt
+    # U, _, Vt = svd(G, full_matrices=False) #TODO change this to a more efficient way
+    # return -r * U @ Vt
+    return -NewtonSchulz(G)
 
 @njit
 def lmo_entrywise_l1(G, r):
@@ -162,6 +137,17 @@ def mcp_jnp(x, lam = 1., mu = 3.):
 
 def prox_l1(x, b):
     return np.sign(x)*np.maximum(np.abs(x)-b, 0)
+
+def spectral_prox_l1(W, b):
+    O = NewtonSchulz(W)
+    res = .5*(
+        (W - b*O)@O.T
+        @(
+            O + 
+            NewtonSchulz(W@O.T@O - b*O)
+        )
+    )
+    return res
 
 @njit
 def prox_mcp(x, b, lam = 1., gamma = 3.):

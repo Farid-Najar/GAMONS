@@ -1,4 +1,4 @@
-from utils import lmo_fro, lmo_spectral, prox_l1, grad_gb, prox_mcp
+from utils import lmo_fro, lmo_spectral, prox_l1, grad_gb, prox_mcp, spectral_prox_l1
 from BCD import load_dataset, Hadamard_BCD
 
 import numpy as np
@@ -119,7 +119,9 @@ if __name__ == "__main__":
     K = 1_000
     rank = 10
     
-    loss, dist_W_prox, WHs = run_MoreauNSD(D, rank, max_iter = K)
+    prox = spectral_prox_l1
+    
+    loss, dist_W_prox, WHs = run_MoreauNSD(D, rank, prox, max_iter = K)
     ls = np.zeros(K+1)
     for i, (W, H) in enumerate(WHs):
         ls[i] = np.linalg.norm(D - W@H, 'fro')**2 + np.linalg.norm(W, 1) - F_min
@@ -131,7 +133,7 @@ if __name__ == "__main__":
     # loss = run_MoreauNSD(D, 10, lmo = lmo_fro)
     # plt.semilogy(loss/norm_D, label = 'l2 lmo')
     
-    loss, dist_W_prox, WHs = run_VS(D, rank, max_iter = K)
+    loss, dist_W_prox, WHs = run_VS(D, rank, prox, max_iter = K)
     ls = np.zeros(K+1)
     for i, (W, H) in enumerate(WHs):
         ls[i] = np.linalg.norm(D - W@H, 'fro')**2 + np.linalg.norm(W, 1) - F_min
