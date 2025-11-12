@@ -138,6 +138,7 @@ def mcp_jnp(x, lam = 1., mu = 3.):
 def prox_l1(x, b):
     return np.sign(x)*np.maximum(np.abs(x)-b, 0)
 
+# @njit
 def spectral_prox_l1(W, b):
     O = NewtonSchulz(W)
     res = .5*(

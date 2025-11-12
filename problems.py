@@ -21,6 +21,44 @@ def update(
     d = lmo(g)
     return x + gamma * d
 
+def run_cvxMoreauNSD(
+    Y,
+    r : int,
+    prox = prox_l1,
+    lmo = lmo_spectral,
+    beta = 1.,
+    e = 1e-3,
+    max_iter = 1_000,
+    ):
+    
+    grad_g = lambda x, b : grad_gb(x, prox, b)
+        
+    W, H = np.random.randn(Y.shape[0], r), np.random.randn(r, Y.shape[1])
+    beta_t = beta/np.sqrt(2)
+    gamma_t = 1
+    WHs = [(W, H)]
+    
+    loss = np.zeros(max_iter)
+    dist_W_prox = np.zeros(max_iter)
+    
+    for t in tqdm(range(max_iter)):
+        D = (Y - W@H)
+        loss[t] = np.linalg.norm(D, 'fro')**2
+        g_W = -D@H.T + grad_g(W, beta_t)
+        W = update(g_W, lambda x : lmo(x, 1), W, gamma_t)
+        g_H = -W.T@D
+        H = update(g_H, lambda x : lmo(x, 1), H, gamma_t)
+        WHs.append((W, H))
+        
+        dist_W_prox[t] = np.linalg.norm(W - prox(W, beta_t), 'fro')
+        
+        beta_t = beta / np.sqrt(t+2)
+        gamma_t = 2 / (t+2)
+        
+    # plt.semilogy(loss)
+    # plt.show()
+    return loss, dist_W_prox, WHs
+
 def run_MoreauNSD(
     Y,
     r : int,
