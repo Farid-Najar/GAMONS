@@ -116,6 +116,20 @@ def mcp(x, lam = 1., mu = 3.):
     p[mask2] = 0.5 * mu * lam**2
     return p
 
+def mcp_torch(x, lam=1.0, mu=3.0):
+    """MCP penalty (torch). Mirrors numpy mcp() and supports autograd."""
+    import torch
+
+    t = x if isinstance(x, torch.Tensor) else torch.as_tensor(x)
+    lam_t = torch.as_tensor(lam, dtype=t.dtype, device=t.device)
+    mu_t = torch.as_tensor(mu, dtype=t.dtype, device=t.device)
+
+    mask = t.abs() <= mu_t * lam_t
+    region1 = lam_t * t.abs() - (t ** 2) / (2 * mu_t)
+    region2 = 0.5 * mu_t * (lam_t ** 2)
+
+    return torch.where(mask, region1, region2)
+
 def mcp_jnp(x, lam = 1., mu = 3.):
     """MCP"""
     x = jnp.asarray(x)
@@ -139,6 +153,17 @@ def prox_l1(x, b):
     return np.sign(x)*np.maximum(np.abs(x)-b, 0)
 
 # @njit
+def spectral_prox_l1_old(W, b):
+    O = NewtonSchulz(W)
+    res = .5*(
+        (W - b*O)@O.T
+        @(
+            O + 
+            NewtonSchulz(W@O.T@O - b*O)
+        )
+    )
+    return res
+
 def spectral_prox_l1(W, b):
     O = NewtonSchulz(W)
     res = .5*(
@@ -150,7 +175,7 @@ def spectral_prox_l1(W, b):
     )
     return res
 
-@njit
+# @njit
 def prox_mcp(x, b, lam = 1., gamma = 3.):
     if gamma <= b:
         raise ValueError("Need gamma > t")
