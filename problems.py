@@ -72,6 +72,7 @@ def run_MoreauNSD(
     q = 1/4,
     e = 1e-3,
     max_iter = 1_000,
+    store_WH_every = 1,
     ):
     
     grad_g = lambda x, b : grad_gb(x, prox, b)
@@ -91,7 +92,9 @@ def run_MoreauNSD(
         g_H = -W.T@D
         W = update(g_W, lambda x : lmo(x, 1), W, gamma_t)
         H = update(g_H, lambda x : lmo(x, 1), H, gamma_t)
-        WHs.append((W, H))
+        
+        if t % store_WH_every == 0:
+            WHs.append((W, H))
         
         dist_W_prox[t] = np.linalg.norm(W - prox(W, beta_t), 'fro')
         
@@ -110,6 +113,7 @@ def run_VS(
     beta = 1.,
     e = 1e-3,
     max_iter = 1_000,
+    store_WH_every = 1,
     ):
     
     grad_g = lambda x, b : grad_gb(x, prox, b)
@@ -137,7 +141,8 @@ def run_VS(
         W = update(g_W, lambda x : lmo_fro(x, 1), W, gamma_tW)
         H = update(g_H, lambda x : lmo_fro(x, 1), H, gamma_tH)
         
-        WHs.append((W, H))
+        if t % store_WH_every == 0:
+            WHs.append((W, H))  
         dist_W_prox[t] = np.linalg.norm(W - prox(W, beta_t), 'fro')
         
         beta_t = beta / (t+1)**(1/3)
@@ -162,7 +167,8 @@ def run_subgradient_descent(
     callback=None,
     device='cpu',
     dtype=torch.float32,
-    seed=None
+    seed=None,
+    store_WH_every = 1,
 ):
     """
     Subgradient steepest descent for matrix factorization problems F(W, H).
@@ -242,7 +248,7 @@ def run_subgradient_descent(
     
     # history = {'f': [], 'grad_norm': [], 'WH' : [(W.item(), H.item())]}
     
-    for k in range(max_iter):
+    for k in tqdm(range(max_iter)):
         # Compute function value and gradients
         # f_val = f(W, H)
         D = (Y - W@H)
@@ -275,7 +281,8 @@ def run_subgradient_descent(
         H = H_new.detach().requires_grad_(True)
         
         # Store history
-        WHs.append((W.detach().numpy(), H.detach().numpy()))
+        if k % store_WH_every == 0:
+            WHs.append((W.detach().numpy(), H.detach().numpy()))
         
         # Optional callback
         if callback is not None:

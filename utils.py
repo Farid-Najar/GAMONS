@@ -84,7 +84,7 @@ def lmo_spectral(G, r):
         return np.zeros_like(G)
     # U, _, Vt = svd(G, full_matrices=False) #TODO change this to a more efficient way
     # return -r * U @ Vt
-    return -NewtonSchulz(G)
+    return -r*NewtonSchulz(G)
 
 @njit
 def lmo_entrywise_l1(G, r):
