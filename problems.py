@@ -64,10 +64,10 @@ def run_cvxMoreauNSD(
 def run_MoreauNSD(
     Y,
     r : int,
-    prox = prox_l1,
+    prox = prox_mcp,
     lmo = lmo_spectral,
     gamma = 1.,
-    beta = 1.,
+    beta = 1.5, # 1.5 is the beta for the MCP as it is 1/mu weakly convex
     p = 2/3,
     q = 1/4,
     e = 1e-3,
@@ -108,9 +108,9 @@ def run_MoreauNSD(
 def run_VS(
     Y,
     r : int,
-    prox = prox_l1,
+    prox = prox_mcp,
     L_gradf = 2.,
-    beta = 1.,
+    beta = 1.5, # 1.5 is the beta for the MCP as it is 1/mu weakly convex
     e = 1e-3,
     max_iter = 1_000,
     store_WH_every = 1,

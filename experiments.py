@@ -252,7 +252,7 @@ def plot_primal_gap_and_penalty(
     g_VS = np.zeros(K+1)
     for i, (W, H) in enumerate(results['variable smoothing']['WHs']):
         g_VS[i] = g(W)
-        ls_VS[i] = np.linalg.norm(D - W@H, 'fro')**2 + g_VS[i] - F_min
+        ls_VS[i] = np.linalg.norm(D - W@H, 'fro')**2 + g_VS[i]
     plt.loglog(ls_VS)
     plt.scatter(x, ls_VS[x], label = 'Variable Smoothing BW', marker="o")
     print(f"VS : {ls_VS[-1]:.3e}")
@@ -261,7 +261,7 @@ def plot_primal_gap_and_penalty(
     g_NSD = np.zeros(K+1)
     for i, (W, H) in enumerate(results['gamons (p = 2/3, q = 1/4)']['WHs']):
         g_NSD[i] = g(W)
-        ls_NSD[i] = np.linalg.norm(D - W@H, 'fro')**2 + g_NSD[i] - F_min
+        ls_NSD[i] = np.linalg.norm(D - W@H, 'fro')**2 + g_NSD[i]
     plt.loglog(ls_NSD)  
     plt.scatter(x, ls_NSD[x], label = 'GAMONS (p = 2/3. q = 1/4)', marker="v")
     print(f"GAMONS (p = 2/3. q = 1/4) : {ls_NSD[-1]:.3e}")
@@ -270,7 +270,7 @@ def plot_primal_gap_and_penalty(
     g_NSD2 = np.zeros(K+1)
     for i, (W, H) in enumerate(results['gamons (p = 7/12, q = 1/3)']['WHs']):
         g_NSD2[i] = g(W)
-        ls_NSD2[i] = np.linalg.norm(D - W@H, 'fro')**2 + g_NSD2[i] - F_min
+        ls_NSD2[i] = np.linalg.norm(D - W@H, 'fro')**2 + g_NSD2[i]
     plt.loglog(ls_NSD2)  
     plt.scatter(x, ls_NSD2[x], label = 'GAMONS (p = 7/12. q = 1/3)', marker="s")
     print(f"GAMONS (p = 7/12. q = 1/3) : {ls_NSD2[-1]:.3e}")
@@ -279,13 +279,14 @@ def plot_primal_gap_and_penalty(
     g_sub = np.zeros(K+1)
     for i, (W, H) in enumerate(results['subgradient']['WHs']):
         g_sub[i] = g(W)
-        ls_sub[i] = np.linalg.norm(D - W@H, 'fro')**2 + g_sub[i] - F_min
+        ls_sub[i] = np.linalg.norm(D - W@H, 'fro')**2 + g_sub[i]
     plt.loglog(ls_sub)
-    print(ls_sub)
     plt.scatter(x, ls_sub[x], label = 'Subgradient', marker="*")
-    plt.ylabel(r'$F(x_k) - F^\star$')
-    plt.xlabel('Iterations')
-    plt.title('The primal gap')
+    print(f"Subgradient : {ls_sub[-1]:.3e}")
+    
+    plt.ylabel(r'$F(x_k)$')
+    plt.xlabel(r'Iterations $k$')
+    plt.title(r'Objectice function $F(x_k)$')
 
     plt.legend()
     plt.show()

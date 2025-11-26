@@ -82,8 +82,7 @@ def lmo_spectral(G, r):
     # Spectral norm ball
     if np.allclose(G, 0):
         return np.zeros_like(G)
-    # U, _, Vt = svd(G, full_matrices=False) #TODO change this to a more efficient way
-    # return -r * U @ Vt
+    
     return -r*NewtonSchulz(G)
 
 @njit
@@ -176,17 +175,17 @@ def spectral_prox_l1(W, b):
     return res
 
 # @njit
-def prox_mcp(x, b, lam = 1., gamma = 3.):
-    if gamma <= b:
+def prox_mcp(x, b, lam = 1., mu = 3.):
+    if mu <= b:
         raise ValueError("Need gamma > t")
     x = np.asarray(x)
     beta = np.zeros_like(x)
     lower = b * lam
-    upper = gamma * lam
+    upper = mu * lam
     mask2 = (np.abs(x) > lower) & (np.abs(x) <= upper)
     mask3 = np.abs(x) > upper
     soft = np.sign(x[mask2]) * (np.abs(x[mask2]) - lower)
-    beta[mask2] = soft / (1 - b / gamma)
+    beta[mask2] = soft / (1 - b / mu)
     beta[mask3] = x[mask3]
     return beta
 
