@@ -3,6 +3,8 @@ from numba import njit
 from scipy.linalg import svd
 
 import jax.numpy as jnp
+import numba as nb
+from numba import vectorize, njit, guvectorize
 
 @njit
 def NewtonSchulz(M):
@@ -103,7 +105,38 @@ def lmo_entrywise_linf(G, r):
 ## Functions
 #############################
 # ---- MCP penalty function ----
-def mcp(x, lam = 1., mu = 3.):
+@vectorize(['float64(float64, float64, float64)'])
+def _mcp(x, lam, mu):
+    """Scalar MCP penalty function for vectorization."""
+    abs_x = abs(x)
+    threshold = mu * lam
+    if abs_x <= threshold:
+        return lam * abs_x - (x * x) / (2.0 * mu)
+    else:
+        return 0.5 * mu * lam * lam
+
+def mcp(x, lam=1.0, mu=3.0):
+    """
+    Minimax Concave Penalty (MCP) function, Numba-compatible.
+    
+    Parameters:
+    -----------
+    x : array-like or scalar
+        Input values.
+    lam : float, optional (default=1.0)
+        Regularization parameter.
+    mu : float, optional (default=3.0)
+        Tuning parameter (mu > 1).
+    
+    Returns:
+    --------
+    p : ndarray or scalar
+        MCP penalty values. Returns a scalar if input is scalar,
+        otherwise returns an array of the same shape as input.
+    """
+    return _mcp(x, lam, mu)
+
+def mcp_old(x, lam = 1., mu = 3.):
     """MCP"""
     x = np.asarray(x)
     p = np.zeros_like(x)
@@ -174,8 +207,65 @@ def spectral_prox_l1(W, b):
     )
     return res
 
+@njit
+def _prox_mcp_scalar(x, b, lam, mu):
+    """Numba-compatible scalar implementation of MCP proximal operator."""
+    if mu <= b:
+        raise ValueError("Need mu > b")
+    
+    lower = b * lam
+    upper = mu * lam
+    abs_x = np.abs(x)
+    
+    if abs_x <= lower:
+        return 0.0
+    elif abs_x <= upper:
+        denom = 1.0 - b / mu
+        return np.sign(x) * (abs_x - lower) / denom
+    else:
+        return x
+
+@guvectorize([(nb.float64, nb.float64, nb.float64, nb.float64, nb.float64[:])],
+                '(),(),(),()->()', nopython=True)
+def _prox_mcp_gufunc(x, b, lam, mu, out):
+    """Generalized ufunc for array inputs."""
+    out[0] = _prox_mcp_scalar(x, b, lam, mu)
+
+def prox_mcp(x, b, lam=1.0, mu=3.0):
+    """
+    Numba-compatible proximal operator for MCP penalty.
+    
+    Parameters:
+    -----------
+    x : scalar or ndarray
+        Input value(s)
+    b : float
+        Step size parameter (must be < mu)
+    lam : float, optional
+        Regularization parameter (default=1.0)
+    mu : float, optional
+        Tuning parameter (default=3.0, must be > b)
+    
+    Returns:
+    --------
+    beta : scalar or ndarray
+        Proximal mapping result with same shape as x
+    """
+    if mu <= b:
+        raise ValueError("Need mu > b")
+    
+    # Handle scalar input directly
+    if np.isscalar(x):
+        return _prox_mcp_scalar(x, b, lam, mu)
+    
+    # Handle array inputs using guvectorize
+    x_arr = np.asarray(x)
+    out = np.empty_like(x_arr)
+    _prox_mcp_gufunc(x_arr, b, lam, mu, out)
+    return out
+
 # @njit
-def prox_mcp(x, b, lam = 1., mu = 3.):
+def prox_mcp_old(x, b, lam = 1., mu = 3.):
     if mu <= b:
         raise ValueError("Need gamma > t")
     x = np.asarray(x)

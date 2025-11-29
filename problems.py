@@ -62,7 +62,8 @@ def run_cvxMoreauNSD(
     return loss, dist_W_prox, WHs
 
 def run_MoreauNSD(
-    Y,
+    Y : np.ndarray,
+    g  : callable,
     r : int,
     prox = prox_mcp,
     lmo = lmo_spectral,
@@ -72,7 +73,7 @@ def run_MoreauNSD(
     q = 1/4,
     e = 1e-3,
     max_iter = 1_000,
-    store_WH_every = 1,
+    # store_WH_every = 1,
     ):
     
     grad_g = lambda x, b : grad_gb(x, prox, b)
@@ -80,21 +81,23 @@ def run_MoreauNSD(
     W, H = np.random.randn(Y.shape[0], r), np.random.randn(r, Y.shape[1])
     beta_t = beta
     gamma_t = gamma
-    WHs = [(W, H)]
+    # WHs = [(W, H)]
     
     loss = np.zeros(max_iter)
+    penalty = np.zeros(max_iter)
     dist_W_prox = np.zeros(max_iter)
     
     for t in tqdm(range(max_iter)):
         D = (Y - W@H)
         loss[t] = np.linalg.norm(D, 'fro')**2
+        penalty[t] = g(W)
         g_W = -D@H.T + grad_g(W, beta_t)
         g_H = -W.T@D
         W = update(g_W, lambda x : lmo(x, 1), W, gamma_t)
         H = update(g_H, lambda x : lmo(x, 1), H, gamma_t)
         
-        if t % store_WH_every == 0:
-            WHs.append((W, H))
+        # if t % store_WH_every == 0:
+        #     WHs.append((W, H))
         
         dist_W_prox[t] = np.linalg.norm(W - prox(W, beta_t), 'fro')
         
@@ -103,23 +106,24 @@ def run_MoreauNSD(
         
     # plt.semilogy(loss)
     # plt.show()
-    return loss, dist_W_prox, WHs
+    return loss, penalty, dist_W_prox, (W, H)
 
 def run_VS(
     Y,
+    g  : callable,
     r : int,
     prox = prox_mcp,
     L_gradf = 2.,
     beta = 1.5, # 1.5 is the beta for the MCP as it is 1/mu weakly convex
     e = 1e-3,
     max_iter = 1_000,
-    store_WH_every = 1,
+    # store_WH_every = 1,
     ):
     
     grad_g = lambda x, b : grad_gb(x, prox, b)
         
     W, H = np.random.randn(Y.shape[0], r), np.random.randn(r, Y.shape[1])
-    WHs = [(W, H)]
+    # WHs = [(W, H)]
     
     beta_t = beta
     norm_T2 = 1 #np.max(W.shape)**2
@@ -130,19 +134,21 @@ def run_VS(
     gamma_tH = 1/(L_gradf + norm_T2/beta_t)
     
     loss = np.zeros(max_iter)
+    penalty = np.zeros(max_iter)
     dist_W_prox = np.zeros(max_iter)
     
     for t in tqdm(range(max_iter)):
         D = (Y - W@H)
         loss[t] = np.linalg.norm(D, 'fro')**2
+        penalty[t] = g(W)
         g_W = -D@H.T + grad_g(W, beta_t)
         g_H = -W.T@D
 
         W = update(g_W, lambda x : lmo_fro(x, 1), W, gamma_tW)
         H = update(g_H, lambda x : lmo_fro(x, 1), H, gamma_tH)
         
-        if t % store_WH_every == 0:
-            WHs.append((W, H))  
+        # if t % store_WH_every == 0:
+        #     WHs.append((W, H))  
         dist_W_prox[t] = np.linalg.norm(W - prox(W, beta_t), 'fro')
         
         beta_t = beta / (t+1)**(1/3)
@@ -152,7 +158,7 @@ def run_VS(
         
     # plt.semilogy(loss)
     # plt.show()
-    return loss, dist_W_prox, WHs
+    return loss, penalty, dist_W_prox, (W, H)
 
 
 def run_subgradient_descent(
@@ -163,12 +169,12 @@ def run_subgradient_descent(
     # step_size_rule=lambda k: 1.0 / (k + 1)**(1/4),
     step_size_rule=1e-3,
     max_iter=1000,
-    tol=1e-6,
+    # tol=1e-8,
     callback=None,
     device='cpu',
     dtype=torch.float32,
     seed=None,
-    store_WH_every = 1,
+    # store_WH_every = 1,
 ):
     """
     Subgradient steepest descent for matrix factorization problems F(W, H).
@@ -242,7 +248,8 @@ def run_subgradient_descent(
     
     # History tracking
     loss = np.zeros(max_iter)
-    WHs = [(W.detach().numpy(), H.detach().numpy())]
+    penalty = np.zeros(max_iter)
+    # WHs = [(W.detach().numpy(), H.detach().numpy())]
     
     Y = torch.from_numpy(Y).to(device, dtype)
     
@@ -254,7 +261,9 @@ def run_subgradient_descent(
         D = (Y - W@H)
         f_val = torch.norm(D, 'fro')**2
         loss[k] = f_val.item()
-        f_val += g(W)
+        pen = g(W)
+        f_val += pen
+        penalty[k] = pen.item()
         f_val.backward()
         
         # Get gradients and compute norm
@@ -264,9 +273,10 @@ def run_subgradient_descent(
         
         
         # Stopping criterion
-        if grad_norm < tol:
-            print(f"Converged at iteration {k} with gradient norm {grad_norm:.2e}")
-            break
+        # if grad_norm < tol:
+        #     print(f"Converged at iteration {k} with gradient norm {grad_norm:.2e}")
+        #     loss[k:] = loss[k]
+        #     break
         
         # Get step size
         step = step_size_rule(k) if callable(step_size_rule) else step_size_rule
@@ -281,68 +291,11 @@ def run_subgradient_descent(
         H = H_new.detach().requires_grad_(True)
         
         # Store history
-        if k % store_WH_every == 0:
-            WHs.append((W.detach().numpy(), H.detach().numpy()))
+        # if k % store_WH_every == 0:
+        #     WHs.append((W.detach().numpy(), H.detach().numpy()))
         
         # Optional callback
         if callback is not None:
             callback(k, W, H, f_val.item(), grad_norm)
     
-    return loss, None, WHs
-
-
-if __name__ == "__main__":
-    # D = load_dataset("synthetic", m = 250, n = 250)
-    # D = load_dataset("olivetti")
-    # D = load_dataset("spectrometer")
-    # D = load_dataset("football")
-    # D = load_dataset("miserables")
-    # D = load_dataset("low_rank_synthetic")
-    W, H = generateWH()
-    D = W@H
-    F_min = np.linalg.norm(W, 1)
-    
-    print(D.shape)
-    norm_D = np.linalg.norm(D, 'fro')**2
-    
-    K = 1_000
-    rank = 10
-    
-    prox = spectral_prox_l1
-    
-    loss, dist_W_prox, WHs = run_MoreauNSD(D, rank, prox, max_iter = K)
-    ls = np.zeros(K+1)
-    for i, (W, H) in enumerate(WHs):
-        ls[i] = np.linalg.norm(D - W@H, 'fro')**2 + np.linalg.norm(W, 1) - F_min
-    # plt.semilogy(loss/norm_D)
-    # plt.scatter(np.arange(len(loss))[::50], loss[::50]/norm_D, label = 'Spectral lmo', marker="v")
-    plt.semilogy(ls)
-    # plt.scatter(np.arange(len(loss))[::50], loss[::50]/norm_D, label = 'Spectral lmo', marker="v")
-    
-    # loss = run_MoreauNSD(D, 10, lmo = lmo_fro)
-    # plt.semilogy(loss/norm_D, label = 'l2 lmo')
-    
-    loss, dist_W_prox, WHs = run_VS(D, rank, prox, max_iter = K)
-    ls = np.zeros(K+1)
-    for i, (W, H) in enumerate(WHs):
-        ls[i] = np.linalg.norm(D - W@H, 'fro')**2 + np.linalg.norm(W, 1) - F_min
-    plt.semilogy(ls)
-    
-    # plt.semilogy(loss/norm_D)
-    # plt.scatter(np.arange(len(loss))[::50], loss[::50]/norm_D, label = 'Variable Smoothing BW', marker="o")
-    
-    # plt.semilogy(loss/norm_D)
-    # plt.scatter(np.arange(len(loss))[::50], loss[::50]/norm_D, label = 'Spectral lmo', marker="v")
-    # plt.semilogy(loss/norm_D)
-    # plt.scatter(np.arange(len(loss))[::50], loss[::50]/norm_D, label = 'Spectral lmo', marker="v")
-    # W1, H1, W2, H2, error, times = Hadamard_BCD(D, r=rank, maxiter= K)
-    # print(len(error))
-    # plt.semilogy(error)
-    # plt.scatter(np.arange(len(error))[::50], error[::50], label = 'BCD', marker="^")
-    
-    plt.ylabel(r'$\|Y - WH\|_F^2$')
-    plt.xlabel('Iterations')
-    
-    plt.legend()
-    plt.show()
-    
+    return loss, penalty, None, (W.detach().numpy(), H.detach().numpy())
