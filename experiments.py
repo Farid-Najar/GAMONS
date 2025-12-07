@@ -6,7 +6,7 @@ import pickle
 from utils import  prox_mcp, mcp, mcp_torch
 from BCD import load_dataset
 
-from problems import run_MoreauNSD, run_VS, run_subgradient_descent
+from runs import run_MoreauNSD, run_VS, run_subgradient_descent
 
 import seaborn as sns
 sns.set_theme('paper', 'whitegrid')

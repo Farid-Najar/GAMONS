@@ -1,7 +1,7 @@
 import numpy as np
 from numba import njit
 
-from utils import lmo_fro, lmo_spectral, grad_gb, prox_mcp
+from utils import lmo_fro, lmo_spectral, grad_gb, mcp, prox_mcp
 
 class GradientDescent:
     def __init__(
@@ -41,87 +41,62 @@ def _update_gamons(
 
 def gamons(
     x0,
-    grad_f,
-    T : np.ndarray,
+    f : callable,
+    grad_f : callable,
+    g : callable = mcp,
     prox = prox_mcp,
     lmo = lmo_spectral,
+    T : np.ndarray = None,
     gamma = 1/3,
     beta = 1.,
     p = 2/3,
     q = 1/4,
-    e = 1e-3,
     max_iter = 1_000,
-    store_xt_every = 1,
+    store_xt_every = 0,
     ):
+    # TODO
+    
+    if T is None:
+        T = np.eye(x0.shape[0])
+    
     grad_g = lambda x, b : grad_gb(x, prox, b)
     
     grad_norms = np.zeros(max_iter)
         
     xt = x0
-    xts = [xt]
+    if store_xt_every > 0:
+        xts = [xt.copy()]
+    else:
+        xts = None
+    
+    fs = np.zeros(max_iter)
+    gs = np.zeros(max_iter)
+    
+    beta_t = beta
+    gamma_t = gamma
     
     for t in tqdm(range(max_iter)):
-        gt = grad_f(xt) + T.T@grad_g(T@xt, beta)
+        Txt = T@xt
+        
+        fs[t] = f(xt)
+        gs[t] = g(Txt)
+        
+        gt = grad_f(xt) + T.T@grad_g(Txt, beta_t)
         grad_norms[t] = np.linalg.norm(gt)
         
-        xt = _update_gamons(xt, gt, gamma, lmo)
-        if t % store_xt_every == 0:
-            xts.append(xt)
+        xt = _update_gamons(xt, gt, gamma_t, lmo)
+        
+        beta_t = beta_t / (t+1)**q
+        gamma_t = gamma_t / (t+1)**p
+        
+        if store_xt_every > 0 and t % store_xt_every == 0:
+            xts.append(xt.copy())
     
-    return xts
-
-@njit
-def f(x : np.ndarray):
-    """ The convex function Lf-smooth
-
-    Parameters
-    ----------
-    x : np.ndarray
-        input
-    """
-    pass
-
-@njit
-def g(x : np.ndarray):
-    """ The (weakly)-convex function non-smooth
-
-    Parameters
-    ----------
-    x : np.ndarray
-        input
-    """
-    pass
-
-@njit
-def g_b(x : np.ndarray, b : float):
-    """ Smoothed g with the Moreau envelope 1/b-smooth
-
-    Parameters
-    ----------
-    x : np.ndarray
-        input
-    """
-    pass
-
-@njit
-def T(x : np.ndarray):
-    """ Linear operator
-
-    Parameters
-    ----------
-    x : np.ndarray
-        input
-    """
-    pass
-
-F = lambda x : f(x) + g(T(x))
-
-def update(
-    grad_F,
-    lmo,
-    xt : np.ndarray,
-    gamma,
-):
-    gt = grad_F(xt)
-    dt = lmo(gt)
-    return xt + gamma * dt
+    result = {
+        'x' : xt,
+        'fs' : fs,
+        'gs' : gs,
+        'grad_norms' : grad_norms,
+        'xs' : xts,
+    }
+    return result
