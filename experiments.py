@@ -3,10 +3,10 @@ import torch
 import os
 import pickle
 
-from utils import  prox_mcp, mcp, mcp_torch
+from utils import  prox_mcp, mcp, mcp_torch, lmo_spectral
 from BCD import load_dataset
 
-from runs import run_MoreauNSD, run_VS, run_subgradient_descent
+from runs import run_gamons, run_VS, run_subgradient_descent
 
 import seaborn as sns
 sns.set_theme('paper', 'whitegrid')
@@ -19,6 +19,9 @@ def run_experiment(
     g: callable = lambda W : np.sum(mcp(W)),
     g_torch: callable = lambda W : torch.sum(mcp_torch(W)),
     prox: callable = prox_mcp,
+    lmo: callable = lambda M : lmo_spectral(M, 1., 6),
+    comment: str = '',
+    save: bool = True,
     # store_WH_every: int = 1,
     ):
     """
@@ -56,8 +59,8 @@ def run_experiment(
 
 
     # Running the experiments
-    loss_NSD, penalty_NSD, dist_W_prox_NSD, WHs_NSD = run_MoreauNSD(
-        D, g, rank, prox, max_iter = K,
+    loss_NSD, penalty_NSD, dist_W_prox_NSD, WHs_NSD = run_gamons(
+        D, g, rank, prox, max_iter = K, lmo = lmo,
     )
     print(f'Gamons (p = 2/3. q = 1/4) loss: {loss_NSD[-1]}')
     results['gamons (p = 2/3, q = 1/4)'] = {
@@ -66,8 +69,8 @@ def run_experiment(
         'dist_W_prox': dist_W_prox_NSD,
         'WH': WHs_NSD,
     }
-    loss_NSD2, penalty_NSD2, dist_W_prox_NSD2, WHs_NSD2 = run_MoreauNSD(
-        D, g, rank, prox, max_iter = K, p = 7/12, q = 1/3,
+    loss_NSD2, penalty_NSD2, dist_W_prox_NSD2, WHs_NSD2 = run_gamons(
+        D, g, rank, prox, max_iter = K, p = 7/12, q = 1/3, lmo = lmo,
     )
     print(f'Gamons (p = 7/12. q = 1/3) loss: {loss_NSD2[-1]}')
     results['gamons (p = 7/12, q = 1/3)'] = {
@@ -106,8 +109,9 @@ def run_experiment(
         'WH': WHs_VS,
     }
     
-    with open(f'results/{dataset_name}/{dataset_name}_rank{rank}.pkl', 'wb') as f:
-        pickle.dump(results, f)
+    if save :
+        with open(f'results/{dataset_name}/{dataset_name}_rank{rank}{"_" if comment else ""}{comment}.pkl', 'wb') as f:
+            pickle.dump(results, f) 
     
     return results
     

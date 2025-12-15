@@ -23,11 +23,11 @@ def update(
     d = lmo(g)
     return x + gamma * d
 
-def run_cvxMoreauNSD(
+def run_gamons_c(
     Y,
     r : int,
     prox = prox_l1,
-    lmo = lmo_spectral,
+    lmo = lambda M : lmo_spectral(M, 1., 6),
     beta = 1.,
     e = 1e-3,
     max_iter = 1_000,
@@ -47,9 +47,9 @@ def run_cvxMoreauNSD(
         D = (Y - W@H)
         loss[t] = np.linalg.norm(D, 'fro')**2
         g_W = -D@H.T + grad_g(W, beta_t)
-        W = update(g_W, lambda x : lmo(x, 1), W, gamma_t)
+        W = update(g_W, lmo, W, gamma_t)
         g_H = -W.T@D
-        H = update(g_H, lambda x : lmo(x, 1), H, gamma_t)
+        H = update(g_H, lmo, H, gamma_t)
         WHs.append((W, H))
         
         dist_W_prox[t] = np.linalg.norm(W - prox(W, beta_t), 'fro')
@@ -61,12 +61,12 @@ def run_cvxMoreauNSD(
     # plt.show()
     return loss, dist_W_prox, WHs
 
-def run_MoreauNSD(
+def run_gamons(
     Y : np.ndarray,
     g  : callable,
     r : int,
     prox = prox_mcp,
-    lmo = lmo_spectral,
+    lmo = lambda M : lmo_spectral(M, 1., 6),
     gamma = 1.,
     beta = 1.5, # 1.5 is the beta for the MCP as it is 1/mu weakly convex
     p = 2/3,
@@ -93,8 +93,8 @@ def run_MoreauNSD(
         penalty[t] = g(W)
         g_W = -D@H.T + grad_g(W, beta_t)
         g_H = -W.T@D
-        W = update(g_W, lambda x : lmo(x, 1), W, gamma_t)
-        H = update(g_H, lambda x : lmo(x, 1), H, gamma_t)
+        W = update(g_W, lmo, W, gamma_t)
+        H = update(g_H, lmo, H, gamma_t)
         
         # if t % store_WH_every == 0:
         #     WHs.append((W, H))

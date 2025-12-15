@@ -7,7 +7,22 @@ import numba as nb
 from numba import vectorize, njit, guvectorize
 
 @njit
-def NewtonSchulz(M):
+def NewtonSchulz(M, steps = 6):
+    """
+    Newton-Schulz method
+    
+    Parameters
+    ----------
+    M : array-like, shape (m, n)
+        Input matrix.
+    steps : int, optional
+        Number of steps to perform. The default and maximum is 6.
+    
+    Returns
+    -------
+    M : array-like, shape (m, n)
+        Output matrix.
+    """
    # by @YouJiacheng (with stability loss idea from @leloykun)
    # https://twitter.com/YouJiacheng/status/1893704552689303901
    # https://gist.github.com/YouJiacheng/393c90cbdc23b09d5688815ba382288b/5bff1f7781cf7d062a155eecd2f13075756482ae
@@ -25,7 +40,7 @@ def NewtonSchulz(M):
     if transpose:
         M = M.T
     M = M / np.linalg.norm(M)
-    for a, b, c in abc_list:
+    for a, b, c in abc_list[:steps]:
         A = M.T @ M
         I = np.eye(A.shape[0])
         M = M @ (a * I + b * A + c * A @ A)
@@ -80,12 +95,12 @@ def lmo_nuclear(G, r):
     return -r * np.outer(u1, v1)
 
 # @njit
-def lmo_spectral(G, r):
+def lmo_spectral(G, r, steps = 6):
     # Spectral norm ball
     if np.allclose(G, 0):
         return np.zeros_like(G)
     
-    return -r*NewtonSchulz(G)
+    return -r*NewtonSchulz(G, steps)
 
 @njit
 def lmo_entrywise_l1(G, r):
